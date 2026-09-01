@@ -1,0 +1,22 @@
+# Local dependencies and caches
+node_modules/
+.cache/
+.DS_Store
+Thumbs.db
+
+# Local preview and QA artifacts
+preview-*.png
+reference-*.png
+provided-images-contact-sheet.jpg
+design-qa.md
+
+# Local helper scripts that are not part of the published site
+serve-local.ps1
+static-server.cjs
+
+# Large source/unused assets kept locally, but not needed for the live site
+assets/amazon/amazon-collection.jpg
+assets/amazon/amazon-final.jpg
+assets/amazon/amazon-visual-design-02.png
+assets/activity-banner/activity-banner-06.png
+assets/user-gallery/gallery-20.png
