@@ -13,4 +13,14 @@ for (const file of ["index.html", "styles.css", "script.js", ".nojekyll"]) {
 
 await cp(join(root, "assets"), join(outDir, "assets"), { recursive: true });
 
+for (const skippedAsset of [
+  "assets/amazon/amazon-collection.jpg",
+  "assets/amazon/amazon-final.jpg",
+  "assets/amazon/amazon-visual-design-02.png",
+  "assets/activity-banner/activity-banner-06.png",
+  "assets/user-gallery/gallery-20.png"
+]) {
+  await rm(join(outDir, skippedAsset), { force: true });
+}
+
 console.log("Static site built to dist/");
