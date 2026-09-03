@@ -671,7 +671,20 @@ window.addEventListener("DOMContentLoaded", () => {
     const lightboxCaption = lightbox?.querySelector(".image-lightbox__caption");
     const lightboxClose = lightbox?.querySelector(".image-lightbox__close");
     const projectLabel = showcase.querySelector(".project-detail-title p")?.textContent?.trim() || "Poster Campaign";
+    const lightboxHome = lightbox?.parentElement || null;
     let activeLightboxTrigger = null;
+
+    function mountLightbox() {
+      if (lightbox && lightbox.parentElement !== document.body) {
+        document.body.appendChild(lightbox);
+      }
+    }
+
+    function restoreLightbox() {
+      if (lightbox && lightboxHome && lightbox.parentElement !== lightboxHome) {
+        lightboxHome.appendChild(lightbox);
+      }
+    }
 
     function closeLightbox() {
       if (!lightbox || !lightboxImage) {
@@ -681,6 +694,7 @@ window.addEventListener("DOMContentLoaded", () => {
       lightbox.setAttribute("aria-hidden", "true");
       document.body.classList.remove("is-lightbox-open");
       lightboxImage.removeAttribute("src");
+      restoreLightbox();
 
       if (activeLightboxTrigger) {
         activeLightboxTrigger.focus({ preventScroll: true });
@@ -698,6 +712,7 @@ window.addEventListener("DOMContentLoaded", () => {
       activeLightboxTrigger = tile.matches("[tabindex]") ? tile : null;
       lightboxImage.src = image.dataset.fullSrc || image.currentSrc || image.src;
       lightboxImage.alt = image.alt || "Selected portfolio image";
+      mountLightbox();
 
       if (lightboxCaption) {
         const visibleTiles = Array.from(showcase.querySelectorAll(".showcase-tile:not([aria-hidden='true'])"));
@@ -854,6 +869,19 @@ window.addEventListener("DOMContentLoaded", () => {
     const lightboxClose = lightbox?.querySelector(".image-lightbox__close");
     const lightboxScroll = lightbox?.querySelector(".image-lightbox__scroll");
     const projectLabel = amazonShowcase.querySelector(".project-detail-title p")?.textContent?.trim() || "Amazon Visual Design";
+    const lightboxHome = lightbox?.parentElement || null;
+
+    function mountAmazonLightbox() {
+      if (lightbox && lightbox.parentElement !== document.body) {
+        document.body.appendChild(lightbox);
+      }
+    }
+
+    function restoreAmazonLightbox() {
+      if (lightbox && lightboxHome && lightbox.parentElement !== lightboxHome) {
+        lightboxHome.appendChild(lightbox);
+      }
+    }
 
     function closeAmazonLightbox() {
       if (!lightbox || !lightboxImage) {
@@ -863,6 +891,7 @@ window.addEventListener("DOMContentLoaded", () => {
       lightbox.setAttribute("aria-hidden", "true");
       document.body.classList.remove("is-lightbox-open");
       lightboxImage.removeAttribute("src");
+      restoreAmazonLightbox();
       amazonStage?.focus({ preventScroll: true });
     }
 
@@ -877,6 +906,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
       lightboxImage.src = image.currentSrc || image.src;
       lightboxImage.alt = image.alt || "Amazon visual design long image";
+      mountAmazonLightbox();
 
       if (lightboxCaption) {
         lightboxCaption.textContent = `${projectLabel} 01`;
