@@ -665,15 +665,33 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  function normalizeLoopOffset(value, distance) {
+    if (!Number.isFinite(distance) || distance <= 0) {
+      return value;
+    }
+
+    const wrapped = value % distance;
+    return Math.abs(wrapped) < 0.01 ? 0 : wrapped;
+  }
+
   function setupDragCarousel(target, options = {}) {
     const axis = options.axis || "x";
     const offsetName = options.offsetName || "--drag-x";
+    const distanceName = options.distanceName || "--marquee-distance";
+    const shouldLoop = Boolean(options.loop);
     const viewport = options.viewport || target.parentElement;
     const dragClassTarget = options.dragClassTarget || target;
     let dragState = null;
 
     function getEventPosition(event) {
       return axis === "y" ? event.clientY : event.clientX;
+    }
+
+    function getLoopDistance() {
+      const rawDistance =
+        target.style.getPropertyValue(distanceName) ||
+        window.getComputedStyle(target).getPropertyValue(distanceName);
+      return Math.abs(parseFloat(rawDistance)) || 0;
     }
 
     function getBounds() {
@@ -695,13 +713,14 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     function setOffset(value) {
-      const nextValue = clampOffset(value);
+      const nextValue = shouldLoop ? value : clampOffset(value);
       target.dataset.dragOffset = String(nextValue);
       target.style.setProperty(offsetName, `${nextValue}px`);
     }
 
-    function syncOffsetToBounds() {
-      setOffset(parseFloat(target.dataset.dragOffset || "0") || 0);
+    function syncOffset() {
+      const value = parseFloat(target.dataset.dragOffset || "0") || 0;
+      setOffset(shouldLoop ? normalizeLoopOffset(value, getLoopDistance()) : value);
     }
 
     target.addEventListener("pointerdown", (event) => {
@@ -712,9 +731,15 @@ window.addEventListener("DOMContentLoaded", () => {
       dragState = {
         pointerId: event.pointerId,
         startPosition: getEventPosition(event),
-        startOffset: clampOffset(parseFloat(target.dataset.dragOffset || "0") || 0),
+        startOffset: shouldLoop
+          ? parseFloat(target.dataset.dragOffset || "0") || 0
+          : clampOffset(parseFloat(target.dataset.dragOffset || "0") || 0),
         hasMoved: false
       };
+
+      if (shouldLoop) {
+        target.style.animationPlayState = "paused";
+      }
 
       dragClassTarget.classList.add("is-dragging");
     });
@@ -740,7 +765,8 @@ window.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      syncOffsetToBounds();
+      syncOffset();
+      target.style.removeProperty("animation-play-state");
       dragClassTarget.classList.remove("is-dragging");
 
       if (dragState.hasMoved) {
@@ -755,9 +781,9 @@ window.addEventListener("DOMContentLoaded", () => {
     target.addEventListener("pointerup", endDrag);
     target.addEventListener("pointercancel", endDrag);
 
-    window.addEventListener("resize", syncOffsetToBounds);
-    syncOffsetToBounds();
-    return syncOffsetToBounds;
+    window.addEventListener("resize", syncOffset);
+    syncOffset();
+    return syncOffset;
   }
 
   document.querySelectorAll(".project-showcase").forEach((showcase) => {
@@ -821,6 +847,60 @@ window.addEventListener("DOMContentLoaded", () => {
       lightboxClose?.focus({ preventScroll: true });
     }
 
+    function handleTileClick(event) {
+      const tile = event.currentTarget;
+      if (tile.closest(".showcase-track")?.dataset.dragMoved === "true") {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
+      openLightbox(tile);
+    }
+
+    function handleTileKeydown(event) {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+
+      event.preventDefault();
+      openLightbox(event.currentTarget);
+    }
+
+    function prepareTileInteraction(tile, index = 0) {
+      tile.style.setProperty("--tile-delay", `${Math.min(index * 42, 520)}ms`);
+
+      if (tile.getAttribute("aria-hidden") !== "true") {
+        tile.setAttribute("role", "button");
+        tile.setAttribute("tabindex", "0");
+      }
+
+      if (tile.dataset.lightboxReady === "true") {
+        return;
+      }
+
+      tile.dataset.lightboxReady = "true";
+      tile.addEventListener("click", handleTileClick);
+      tile.addEventListener("keydown", handleTileKeydown);
+    }
+
+    showcase.addEventListener("pointerup", (event) => {
+      if (event.button !== 0) {
+        return;
+      }
+
+      const tile = event.target.closest(".showcase-tile");
+      if (!tile || !showcase.contains(tile)) {
+        return;
+      }
+
+      if (tile.closest(".showcase-track")?.dataset.dragMoved === "true") {
+        return;
+      }
+
+      openLightbox(tile);
+    });
+
     showcase.querySelectorAll(".showcase-track").forEach((track) => {
       const originals = Array.from(track.children);
       const shouldUseIntrinsicRatio = Boolean(track.closest(".showcase-gallery--social, .showcase-gallery--intrinsic"));
@@ -828,6 +908,8 @@ window.addEventListener("DOMContentLoaded", () => {
       const syncDragBounds = setupDragCarousel(track, {
         axis: "x",
         offsetName: "--drag-x",
+        distanceName: "--marquee-distance",
+        loop: true,
         viewport: track.closest(".showcase-gallery"),
         dragClassTarget: track
       });
@@ -853,7 +935,42 @@ window.addEventListener("DOMContentLoaded", () => {
         Array.from(track.children).forEach(applyIntrinsicRatio);
       }
 
+      function removeCloneSet() {
+        Array.from(track.querySelectorAll(".showcase-tile[aria-hidden='true']")).forEach((tile) => {
+          tile.remove();
+        });
+      }
+
+      function appendCloneSet() {
+        originals.forEach((tile) => {
+          applyIntrinsicRatio(tile);
+          const clone = tile.cloneNode(true);
+          clone.setAttribute("aria-hidden", "true");
+          clone.removeAttribute("role");
+          clone.removeAttribute("tabindex");
+          track.appendChild(clone);
+          prepareTileInteraction(clone);
+        });
+      }
+
       function ensureTrackCoverage() {
+        removeCloneSet();
+        applyTrackRatios();
+
+        const gap = parseFloat(window.getComputedStyle(track).columnGap) || 0;
+        const originalWidth = originals.reduce((total, tile) => total + tile.getBoundingClientRect().width, 0);
+        const originalSetWidth = originalWidth + Math.max(originals.length - 1, 0) * gap;
+
+        if (!originalSetWidth) {
+          return;
+        }
+
+        track.style.setProperty("--marquee-distance", `${originalSetWidth + gap}px`);
+
+        while (track.scrollWidth < window.innerWidth + originalSetWidth) {
+          appendCloneSet();
+        }
+
         applyTrackRatios();
         syncDragBounds();
       }
@@ -873,31 +990,7 @@ window.addEventListener("DOMContentLoaded", () => {
     });
 
     showcase.querySelectorAll(".showcase-tile").forEach((tile, index) => {
-      tile.style.setProperty("--tile-delay", `${Math.min(index * 42, 520)}ms`);
-
-      if (tile.getAttribute("aria-hidden") !== "true") {
-        tile.setAttribute("role", "button");
-        tile.setAttribute("tabindex", "0");
-      }
-
-      tile.addEventListener("click", (event) => {
-        if (tile.closest(".showcase-track")?.dataset.dragMoved === "true") {
-          event.preventDefault();
-          event.stopPropagation();
-          return;
-        }
-
-        openLightbox(tile);
-      });
-
-      tile.addEventListener("keydown", (event) => {
-        if (event.key !== "Enter" && event.key !== " ") {
-          return;
-        }
-
-        event.preventDefault();
-        openLightbox(tile);
-      });
+      prepareTileInteraction(tile, index);
     });
 
     lightbox?.addEventListener("click", (event) => {
@@ -921,24 +1014,51 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   document.querySelectorAll(".amazon-scroll-track").forEach((track) => {
-    const firstPanel = track.querySelector(".amazon-scroll-panel");
     const stage = track.closest(".amazon-scroll-stage");
+    const originalPanels = Array.from(track.querySelectorAll(".amazon-scroll-panel"));
 
     const syncDragBounds = setupDragCarousel(track, {
       axis: "y",
       offsetName: "--drag-y",
+      distanceName: "--amazon-scroll-distance",
+      loop: true,
       viewport: stage,
       dragClassTarget: stage || track
     });
 
+    function resetAmazonClones() {
+      Array.from(track.querySelectorAll(".amazon-scroll-panel[aria-hidden='true']")).forEach((panel) => {
+        panel.remove();
+      });
+    }
+
+    function appendAmazonCloneSet() {
+      originalPanels.forEach((panel) => {
+        const clone = panel.cloneNode(true);
+        clone.setAttribute("aria-hidden", "true");
+        track.appendChild(clone);
+      });
+    }
+
     function updateAmazonScrollDistance() {
+      const firstPanel = originalPanels[0];
       if (!firstPanel) {
         return;
       }
 
+      resetAmazonClones();
       const gap = parseFloat(window.getComputedStyle(track).rowGap) || 0;
       const distance = firstPanel.getBoundingClientRect().height + gap;
+      if (!distance) {
+        return;
+      }
+
       track.style.setProperty("--amazon-scroll-distance", `${distance}px`);
+
+      while (track.scrollHeight < (stage?.clientHeight || 0) + distance) {
+        appendAmazonCloneSet();
+      }
+
       syncDragBounds();
     }
 
