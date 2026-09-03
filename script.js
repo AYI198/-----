@@ -665,6 +665,96 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  function normalizeLoopOffset(value, distance) {
+    if (!Number.isFinite(distance) || distance <= 0) {
+      return value;
+    }
+
+    const wrapped = value % distance;
+    return Math.abs(wrapped) < 0.01 ? 0 : wrapped;
+  }
+
+  function setupDragMarquee(target, options = {}) {
+    const axis = options.axis || "x";
+    const offsetName = options.offsetName || "--drag-x";
+    const distanceName = options.distanceName || "--marquee-distance";
+    const dragClassTarget = options.dragClassTarget || target;
+    let dragState = null;
+
+    function getEventPosition(event) {
+      return axis === "y" ? event.clientY : event.clientX;
+    }
+
+    function getLoopDistance() {
+      const rawDistance =
+        target.style.getPropertyValue(distanceName) ||
+        window.getComputedStyle(target).getPropertyValue(distanceName);
+      return Math.abs(parseFloat(rawDistance)) || 0;
+    }
+
+    function setOffset(value) {
+      target.dataset.dragOffset = String(value);
+      target.style.setProperty(offsetName, `${value}px`);
+    }
+
+    target.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) {
+        return;
+      }
+
+      dragState = {
+        pointerId: event.pointerId,
+        startPosition: getEventPosition(event),
+        startOffset: parseFloat(target.dataset.dragOffset || "0") || 0,
+        hasMoved: false
+      };
+
+      target.setPointerCapture?.(event.pointerId);
+      target.style.animationPlayState = "paused";
+      dragClassTarget.classList.add("is-dragging");
+      event.preventDefault();
+    });
+
+    target.addEventListener("pointermove", (event) => {
+      if (!dragState || event.pointerId !== dragState.pointerId) {
+        return;
+      }
+
+      const delta = getEventPosition(event) - dragState.startPosition;
+
+      if (Math.abs(delta) > 6) {
+        dragState.hasMoved = true;
+        target.dataset.dragMoved = "true";
+      }
+
+      setOffset(dragState.startOffset + delta);
+      event.preventDefault();
+    });
+
+    function endDrag(event) {
+      if (!dragState || event.pointerId !== dragState.pointerId) {
+        return;
+      }
+
+      const finalOffset = parseFloat(target.dataset.dragOffset || "0") || 0;
+      setOffset(normalizeLoopOffset(finalOffset, getLoopDistance()));
+      target.releasePointerCapture?.(event.pointerId);
+      target.style.removeProperty("animation-play-state");
+      dragClassTarget.classList.remove("is-dragging");
+
+      if (dragState.hasMoved) {
+        window.setTimeout(() => {
+          delete target.dataset.dragMoved;
+        }, 180);
+      }
+
+      dragState = null;
+    }
+
+    target.addEventListener("pointerup", endDrag);
+    target.addEventListener("pointercancel", endDrag);
+  }
+
   document.querySelectorAll(".project-showcase").forEach((showcase) => {
     const lightbox = showcase.querySelector(".image-lightbox");
     const lightboxImage = lightbox?.querySelector(".image-lightbox__image");
@@ -729,6 +819,13 @@ window.addEventListener("DOMContentLoaded", () => {
     showcase.querySelectorAll(".showcase-track").forEach((track) => {
       const originals = Array.from(track.children);
       const shouldUseIntrinsicRatio = Boolean(track.closest(".showcase-gallery--social, .showcase-gallery--intrinsic"));
+
+      setupDragMarquee(track, {
+        axis: "x",
+        offsetName: "--drag-x",
+        distanceName: "--marquee-distance",
+        dragClassTarget: track
+      });
 
       function applyIntrinsicRatio(tile) {
         if (!shouldUseIntrinsicRatio) {
@@ -806,7 +903,13 @@ window.addEventListener("DOMContentLoaded", () => {
         tile.setAttribute("tabindex", "0");
       }
 
-      tile.addEventListener("click", () => {
+      tile.addEventListener("click", (event) => {
+        if (tile.closest(".showcase-track")?.dataset.dragMoved === "true") {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+
         openLightbox(tile);
       });
 
@@ -842,6 +945,14 @@ window.addEventListener("DOMContentLoaded", () => {
 
   document.querySelectorAll(".amazon-scroll-track").forEach((track) => {
     const firstPanel = track.querySelector(".amazon-scroll-panel");
+    const stage = track.closest(".amazon-scroll-stage");
+
+    setupDragMarquee(track, {
+      axis: "y",
+      offsetName: "--drag-y",
+      distanceName: "--amazon-scroll-distance",
+      dragClassTarget: stage || track
+    });
 
     function updateAmazonScrollDistance() {
       if (!firstPanel) {
@@ -895,7 +1006,13 @@ window.addEventListener("DOMContentLoaded", () => {
       amazonStage?.focus({ preventScroll: true });
     }
 
-    function openAmazonLightbox() {
+    function openAmazonLightbox(event) {
+      if (event?.type === "click" && amazonShowcase.querySelector(".amazon-scroll-track")?.dataset.dragMoved === "true") {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
       const image =
         amazonShowcase.querySelector(".amazon-scroll-panel:not([aria-hidden='true']) img") ||
         amazonShowcase.querySelector(".amazon-scroll-panel img");

@@ -1899,6 +1899,8 @@ video {
   gap: clamp(14px, 1.25vw, 22px);
   overflow: hidden;
   padding: 0 0 clamp(16px, 1.8vw, 26px);
+  touch-action: pan-y;
+  user-select: none;
 }
 
 .showcase-track {
@@ -1910,11 +1912,17 @@ video {
   animation-duration: var(--marquee-duration, 64s);
   animation-iteration-count: infinite;
   animation-timing-function: linear;
+  cursor: grab;
 }
 
 .showcase-track:hover,
-.is-lightbox-open .showcase-track {
+.is-lightbox-open .showcase-track,
+.showcase-track.is-dragging {
   animation-play-state: paused;
+}
+
+.showcase-track.is-dragging {
+  cursor: grabbing;
 }
 
 .showcase-track--top {
@@ -1928,21 +1936,21 @@ video {
 
 @keyframes showcase-marquee-left {
   from {
-    transform: translate3d(0, 0, 0);
+    transform: translate3d(var(--drag-x, 0px), 0, 0);
   }
 
   to {
-    transform: translate3d(calc(var(--marquee-distance, 1400px) * -1), 0, 0);
+    transform: translate3d(calc((var(--marquee-distance, 1400px) * -1) + var(--drag-x, 0px)), 0, 0);
   }
 }
 
 @keyframes showcase-marquee-right {
   from {
-    transform: translate3d(calc(var(--marquee-distance, 1400px) * -1), 0, 0);
+    transform: translate3d(calc((var(--marquee-distance, 1400px) * -1) + var(--drag-x, 0px)), 0, 0);
   }
 
   to {
-    transform: translate3d(0, 0, 0);
+    transform: translate3d(var(--drag-x, 0px), 0, 0);
   }
 }
 
@@ -1955,7 +1963,7 @@ video {
   border: 1px solid transparent;
   border-radius: var(--image-radius);
   box-shadow: 0 18px 56px rgba(0, 0, 0, 0.28);
-  cursor: zoom-in;
+  cursor: inherit;
   opacity: 0;
   transform: translateY(54px) scale(0.965);
   transition:
@@ -2343,7 +2351,9 @@ video {
   border-radius: var(--image-radius);
   background: #05050c;
   box-shadow: 0 30px 90px rgba(0, 0, 0, 0.32);
-  cursor: zoom-in;
+  cursor: grab;
+  touch-action: pan-x;
+  user-select: none;
 }
 
 .amazon-scroll-track {
@@ -2354,8 +2364,13 @@ video {
   animation: amazon-scroll-up var(--amazon-duration, 86s) linear infinite;
 }
 
-.amazon-scroll-stage:hover .amazon-scroll-track {
+.amazon-scroll-stage:hover .amazon-scroll-track,
+.amazon-scroll-stage.is-dragging .amazon-scroll-track {
   animation-play-state: paused;
+}
+
+.amazon-scroll-stage.is-dragging {
+  cursor: grabbing;
 }
 
 body.is-lightbox-open .amazon-scroll-track {
@@ -2376,11 +2391,11 @@ body.is-lightbox-open .amazon-scroll-track {
 
 @keyframes amazon-scroll-up {
   from {
-    transform: translate3d(0, 0, 0);
+    transform: translate3d(0, var(--drag-y, 0px), 0);
   }
 
   to {
-    transform: translate3d(0, calc(var(--amazon-scroll-distance, 900px) * -1), 0);
+    transform: translate3d(0, calc((var(--amazon-scroll-distance, 900px) * -1) + var(--drag-y, 0px)), 0);
   }
 }
 
